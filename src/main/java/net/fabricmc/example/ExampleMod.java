@@ -1,18 +1,30 @@
 package net.fabricmc.example;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
+import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
 import net.fabricmc.fabric.api.biome.v1.OverworldBiomes;
 import net.fabricmc.fabric.api.biome.v1.OverworldClimate;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.intprovider.ConstantIntProvider;
+import net.minecraft.util.math.intprovider.IntProvider;
 import net.minecraft.util.registry.BuiltinRegistries;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.util.registry.RegistryKey;
+import net.minecraft.world.Heightmap;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeEffects;
 import net.minecraft.world.biome.GenerationSettings;
 import net.minecraft.world.biome.SpawnSettings;
-import net.minecraft.world.gen.feature.DefaultBiomeFeatures;
+import net.minecraft.world.gen.GenerationStep;
+import net.minecraft.world.gen.decorator.Decorator;
+import net.minecraft.world.gen.decorator.HeightmapDecoratorConfig;
+import net.minecraft.world.gen.feature.*;
+import net.minecraft.world.gen.stateprovider.BlockStateProvider;
+import net.minecraft.world.gen.stateprovider.SimpleBlockStateProvider;
 import net.minecraft.world.gen.surfacebuilder.ConfiguredSurfaceBuilder;
 import net.minecraft.world.gen.surfacebuilder.SurfaceBuilder;
 import net.minecraft.world.gen.surfacebuilder.TernarySurfaceConfig;
@@ -28,8 +40,8 @@ public class ExampleMod implements ModInitializer {
 	// We use custom surface builder for our biome to cover surface with obsidians.
 	private static final ConfiguredSurfaceBuilder<TernarySurfaceConfig> OBSIDIAN_SURFACE_BUILDER = SurfaceBuilder.DEFAULT
 			.withConfig(new TernarySurfaceConfig(
-					Blocks.OBSIDIAN.getDefaultState(),
-					Blocks.DIRT.getDefaultState(),
+					Blocks.SAND.getDefaultState(),
+					Blocks.SANDSTONE.getDefaultState(),
 					Blocks.GRAVEL.getDefaultState()));
 
 	private static final Biome OBSILAND = createObsiland();
@@ -55,6 +67,7 @@ public class ExampleMod implements ModInitializer {
 		DefaultBiomeFeatures.addDefaultDisks(generationSettings);
 		DefaultBiomeFeatures.addSprings(generationSettings);
 		DefaultBiomeFeatures.addFrozenTopLayer(generationSettings);
+		DefaultBiomeFeatures.addDesertDeadBushes(generationSettings);
 
 		return (new Biome.Builder())
 				.precipitation(Biome.Precipitation.RAIN)
@@ -74,6 +87,12 @@ public class ExampleMod implements ModInitializer {
 				.build();
 	}
 	public static final RegistryKey<Biome> OBSILAND_KEY = RegistryKey.of(Registry.BIOME_KEY, new Identifier("tutorial", "obsiland"));
+	private static final Feature<SpiralFeatureConfig> SPIRAL = new SpiralFeature(SpiralFeatureConfig.CODEC);
+
+	public static final ConfiguredFeature<?, ?> STONE_SPIRAL = SPIRAL.configure(new SpiralFeatureConfig(ConstantIntProvider.create(15), new SimpleBlockStateProvider(Blocks.STONE.getDefaultState())))
+			.decorate(Decorator.HEIGHTMAP.configure(new HeightmapDecoratorConfig(Heightmap.Type.OCEAN_FLOOR_WG)))
+			.spreadHorizontally()
+			.applyChance(5);
 
 	@Override
 	public void onInitialize() {
@@ -82,5 +101,11 @@ public class ExampleMod implements ModInitializer {
 
 		OverworldBiomes.addContinentalBiome(OBSILAND_KEY, OverworldClimate.TEMPERATE, 2D);
 		OverworldBiomes.addContinentalBiome(OBSILAND_KEY, OverworldClimate.COOL, 2D);
+		Registry.register(Registry.FEATURE, new Identifier("tutorial", "spiral"), SPIRAL);
+
+		RegistryKey<ConfiguredFeature<?, ?>> stoneSpiral = RegistryKey.of(Registry.CONFIGURED_FEATURE_KEY,
+				new Identifier("tutorial", "stone_spiral"));
+		Registry.register(BuiltinRegistries.CONFIGURED_FEATURE, stoneSpiral.getValue(), STONE_SPIRAL);
+		BiomeModifications.addFeature(BiomeSelectors.includeByKey(OBSILAND_KEY), GenerationStep.Feature.UNDERGROUND_ORES, stoneSpiral);
 	}
 }
