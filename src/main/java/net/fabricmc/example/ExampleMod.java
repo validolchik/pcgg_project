@@ -1,9 +1,15 @@
 package net.fabricmc.example;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.biome.v1.OverworldBiomes;
-import net.fabricmc.fabric.api.biome.v1.OverworldClimate;
+import net.fabricmc.example.mixin.StructuresConfigAccessor;
+import net.fabricmc.example.structures.NoWaterProcessor;
+import net.fabricmc.fabric.api.biome.v1.*;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.minecraft.block.Blocks;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.structure.processor.StructureProcessorType;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.BuiltinRegistries;
 import net.minecraft.util.registry.Registry;
@@ -12,24 +18,29 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeEffects;
 import net.minecraft.world.biome.GenerationSettings;
 import net.minecraft.world.biome.SpawnSettings;
+import net.minecraft.world.gen.chunk.StructureConfig;
 import net.minecraft.world.gen.feature.DefaultBiomeFeatures;
+import net.minecraft.world.gen.feature.StructureFeature;
 import net.minecraft.world.gen.surfacebuilder.ConfiguredSurfaceBuilder;
 import net.minecraft.world.gen.surfacebuilder.SurfaceBuilder;
 import net.minecraft.world.gen.surfacebuilder.TernarySurfaceConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+
 public class ExampleMod implements ModInitializer {
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
-//	public static final Logger LOGGER = LogManager.getLogger("modid");
-	// SurfaceBuilder defines how the surface of your biome looks.
-	// We use custom surface builder for our biome to cover surface with obsidians.
-	private static final ConfiguredSurfaceBuilder<TernarySurfaceConfig> OBSIDIAN_SURFACE_BUILDER = SurfaceBuilder.DEFAULT
+	public static final String MODID = "example";
+	public static final Identifier UNDERGROUNDVILLAGE_IDENTIFIER = new Identifier(ExampleMod.MODID, "underground_village");
+	public static final Identifier CONFIGURED_UNDERGROUNDVILLAGE_IDENTIFIER = new Identifier(ExampleMod.MODID, "configured_underground_village");
+	public static StructureProcessorType<NoWaterProcessor> NOWATER_PROCESSOR = () -> NoWaterProcessor.CODEC;
+
+	private static final ConfiguredSurfaceBuilder<TernarySurfaceConfig> OBSIDIAN_SURFACE_BUILDER = SurfaceBuilder.NETHER
 			.withConfig(new TernarySurfaceConfig(
 					Blocks.OBSIDIAN.getDefaultState(),
-					Blocks.DIRT.getDefaultState(),
+					Blocks.STONE.getDefaultState(),
 					Blocks.GRAVEL.getDefaultState()));
 
 	private static final Biome OBSILAND = createObsiland();
@@ -82,5 +93,25 @@ public class ExampleMod implements ModInitializer {
 
 		OverworldBiomes.addContinentalBiome(OBSILAND_KEY, OverworldClimate.TEMPERATE, 2D);
 		OverworldBiomes.addContinentalBiome(OBSILAND_KEY, OverworldClimate.COOL, 2D);
+
+
+		ExStructures.registerStructureFeatures();
+		ExConfiguredStructures.registerConfiguredStructures();
+		Registry.register(Registry.STRUCTURE_PROCESSOR, new Identifier(MODID, "nowater_processor"), NOWATER_PROCESSOR);
+
+		Predicate<BiomeSelectionContext> biomes = BiomeSelectors.categories(Biome.Category.FOREST, Biome.Category.JUNGLE, Biome.Category.DESERT, Biome.Category.PLAINS, Biome.Category.SAVANNA).and(BiomeSelectors.foundInOverworld());
+
+		// Add structures to biomes.
+		BiomeModifications.create(UNDERGROUNDVILLAGE_IDENTIFIER)
+				.add(ModificationPhase.ADDITIONS,
+						biomes,
+						context -> context.getGenerationSettings().addBuiltInStructure(ExConfiguredStructures.CONFIGURED_UNDERGROUND_VILLAGE));
+
+
+
+
 	}
+
+
 }
+
